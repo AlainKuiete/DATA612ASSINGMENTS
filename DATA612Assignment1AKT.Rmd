@@ -1,0 +1,161 @@
+---
+title: "Recommendation with RMSE"
+author: "Alain T Kuiete"
+date: "2/7/2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Building a Recommendation System for Movie Rating
+
+
+### Importing Librairies
+```{r}
+library(tidyverse)
+```
+
+
+### Loading the dataset
+```{r}
+rating <- read.csv("https://raw.githubusercontent.com/AlainKuiete/DATA612/master/Movie_Ratings.csv?token=AL6CTVV4KKAVICJCOA4KAKC6H5ES4")
+```
+
+### Visualizing the first 5 rows
+```{r}
+head(rating)
+```
+
+### Structure of the dataframe
+```{r}
+str(rating)
+```
+
+
+### Transforming dataframe rating to matrix
+```{r}
+rating_matrix <- data.matrix(rating[,2:26])
+rownames(rating_matrix) <- rating$X
+rating_matrix[1:7,1:7]
+```
+
+
+
+### Splitting the data into train and test set
+
+```{r}
+test_rating <- rating_matrix[16:25,16:25]
+rating_matrix[16:25,16:25] <- NA
+train_rating <- rating_matrix
+train_rating[10:25,10:25]
+```
+
+
+
+### Mean of train set
+```{r}
+average.rating <- mean(train_rating, na.rm = TRUE)
+average.rating
+```
+
+### Calculate the RMSE for raw average for both your training data and test data.
+```{r}
+rmse1_test <- sqrt(mean((test_rating-average.rating)**2, na.rm = TRUE))
+rmse1_test
+```
+
+```{r}
+rmse1_train <- sqrt(mean((train_rating-average.rating)**2, na.rm = TRUE))
+rmse1_train
+```
+### Calculate the bias for each user and each item.
+```{r}
+bias_movies <- rowMeans(train_rating, na.rm = TRUE) - average.rating
+bias_movies
+```
+
+
+```{r}
+bias_movies_mat <- matrix(rep(bias_movies, 25),nrow = 25, byrow = FALSE)
+```
+
+
+```{r}
+bias_movies_mat[1:5,1:5]
+```
+
+
+```{r}
+bias_users <- colMeans(train_rating, na.rm = TRUE) - average.rating
+bias_users
+```
+
+```{r}
+bias_users_mat <- matrix(rep(bias_users, 25),nrow = 25, byrow = TRUE)
+```
+
+
+```{r}
+bias_users_mat[1:5, 1:5]
+```
+
+
+
+
+
+### From the raw average, and the appropriate user and item biases, calculate the baseline predictors for every user-item combination.
+
+## Baseline Predictor = Raw avg + Bias Users + Bias Movies
+
+```{r}
+ baseline_predictor <- bias_movies_mat + bias_users_mat + average.rating
+```
+
+
+```{r}
+baseline_predictor[16:25, 16:25]
+```
+
+
+## rescling between 1 and 5
+```{r}
+rescaling <- function(a){
+  if (a <= 1){a <- 1}
+  if (a >= 5){a <- 5}
+  return(a)
+} 
+```
+
+```{r}
+baseline_predictor <- apply(baseline_predictor, c(1,2), rescaling)
+baseline_predictor[16:25, 16:25]
+```
+
+## Calculate the RMSE for the baseline predictors for both your training data and your test data.
+
+```{r}
+rmse2_test <- sqrt(mean((test_rating - baseline_predictor[16:25,16:25])**2, na.rm = TRUE))
+rmse2_test
+```
+
+```{r}
+rmse2_train <- sqrt(mean((train_rating - baseline_predictor)**2, na.rm = TRUE))
+rmse2_train
+```
+
+```{r}
+(rmse2_test-rmse1_test)/rmse1_test
+```
+
+
+```{r}
+(rmse2_train-rmse1_train)/rmse1_train
+```
+
+## Conclusion
+Using the RMSE as test model, the baseline predictor have a better result than the raw average for both the training and the test set.
+There is an amelioration of 41.8% for the test set and 26.7% for the training set.
+
