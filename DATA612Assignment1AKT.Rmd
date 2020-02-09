@@ -120,7 +120,7 @@ baseline_predictor[16:25, 16:25]
 ```
 
 
-## rescling between 1 and 5
+## rescaling between 1 and 5
 ```{r}
 rescaling <- function(a){
   if (a <= 1){a <- 1}
