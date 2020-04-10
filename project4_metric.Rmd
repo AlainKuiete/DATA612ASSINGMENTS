@@ -1,0 +1,270 @@
+---
+title: "EVALUATION OF RECOMMENDER SYSTEMS"
+author: "Alain Kuiete Tchoupou"
+date: "April 9, 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load the libraries
+
+```{r}
+library(recommenderlab)  # Matrix/recommender functions
+library(dplyr)  # Data manipulation
+library(tidyr)  # Data manipulation
+library(ggplot2)  # Plotting
+library(tictoc)  # Operation timing
+```
+```{r}
+set.seed(42)
+```
+
+## Subsetting Dataset
+Now let’s see the process of reducing the data from the main dataset
+
+Import original file and select sample for project
+
+```{r}
+ratings <- read.csv('/home/alainkuiete/Documents/DATA612/movie20m/ml-20m/ratings.csv')
+```
+
+
+
+Explore
+```{r}
+head(ratings)
+```
+
+
+
+```{r}
+hist(ratings$rating)
+```
+
+
+Convert to realRatingMatrix
+```{r}
+ratingsMatrix <- sparseMatrix(as.integer(ratings$userId), as.integer(ratings$movieId),  x = ratings$rating)
+colnames(ratingsMatrix) <- levels(ratings$movieId)
+rownames(ratingsMatrix) <- levels(ratings$userId)
+mratings <- as(ratingsMatrix, "realRatingMatrix")
+```
+
+
+Explore
+```{r}
+mratings
+```
+
+
+```{r}
+hist(rowCounts(mratings))
+```
+
+
+
+```{r}
+#table(rowCounts(mratings))
+```
+
+
+
+```{r}
+hist(colCounts(mratings))
+```
+    
+
+
+```{r}
+#table(colCounts(mratings))
+```
+
+   
+Select Subset 1 and Subset 2
+
+```{r}
+(ratingShort <- mratings[rowCounts(mratings) > 900, colCounts(mratings) > 100])
+```
+
+
+
+
+Step-6) Check and Remove Empty Lines
+```{r}
+ratingShort <- mratings[, colCounts(mratings) > 100]
+ratingShort <- ratingShort[rowCounts(ratingShort) > 900, ]
+ratingShort
+```
+
+```{r}
+#table(rowCounts(ratingShort))
+```
+
+
+
+```{r}
+#table(colCounts(ratingShort))
+```
+
+```{r}
+(ratings_movies <- ratingShort[, colCounts(ratingShort) != 0])
+```
+ 
+Convert to data frame and save as CSV file
+```{r}
+# df <- as.data.frame(as.matrix(ratingShort@data))
+# df$userId <- rownames(df)
+# df <- df %>% gather(key = movieId, value = rating, -userId) %>% filter(rating != 0)
+# write.csv(df, '/home/alainkuiete/Documents/DATA612/movie20m/ml-20m/ratings_final.csv', row.names = FALSE)
+```
+
+## Evaluating Recommender Techniques
+### Evaluating the model
+#### Preparing the data for validation
+```{r}
+n_fold <- 4
+items_to_keep <- 25
+rating_threshold <- 3
+eval_sets <- evaluationScheme(data = ratings_movies, method = "cross-validation", k = n_fold,
+                              given = items_to_keep, goodRating = rating_threshold)
+```
+
+
+## Train and Test sets
+#### Train/test split
+Split the dataset into test and train sets to build the model.
+
+```{r}
+train <- getData(eval_sets, "train")
+known <- getData(eval_sets, "known")
+unknown <- getData(eval_sets, "unknown")
+```
+
+
+#### Evaluate the item-based collaborative filtering recommender
+```{r}
+model_to_evaluate <- "IBCF"
+model_parameters <- NULL
+```
+
+Build the model
+```{r}
+eval_recommender <- Recommender(data = getData(eval_sets,"train"), method = model_to_evaluate,
+                                parameter = model_parameters)
+```
+
+Specify the number of items to recommend
+```{r}
+items_to_recommend <- 10
+```
+
+Build the matrix with the predicted ratings
+```{r}
+eval_prediction <- predict(object = eval_recommender, newdata = getData(eval_sets, "known"),
+                           n = items_to_recommend, type = "ratings")
+class(eval_prediction)
+```
+
+Number of movies recommend to each user
+```{r}
+qplot(rowCounts(eval_prediction)) + geom_histogram(binwidth = 50) +
+  ggtitle("Distribution of movies per users")
+```
+
+
+#### Metrics that mesure the accuracy:
+- Root mean square error(RMSE)
+- Mean squared error (MSE)
+- Mean absollute error(MAE)
+#### Metrics by user
+```{r}
+eval_accuracy <- calcPredictionAccuracy(x = eval_prediction, data = getData(eval_sets, "unknown"),
+                                        byUser = TRUE)
+head(eval_accuracy)
+```
+
+Distribution of RMSE by user
+```{r}
+qplot(eval_accuracy[,"RMSE"]) + geom_histogram(binwidth = 0.1) +
+  ggtitle("Distribution of the RMSE by user")
+```
+
+
+#### Accuracy of the whole model
+```{r}
+calcPredictionAccuracy(x = eval_prediction, data = getData(eval_sets, "unknown"),
+                                        byUser = FALSE)
+```
+
+### Evaluation by Recommendation
+Comparing the recommendations with the purchases having positive rating
+```{r}
+results <- evaluate(x = eval_sets, method = model_to_evaluate, n = seq(10,100,10))
+class(results)
+```
+
+Build the ROC curve
+```{r}
+plot(results, annotate = TRUE, main = "ROC curve")
+```
+
+#### Accuracy metrics Precision and Recall
+```{r}
+plot(results, "prec/rec", annotate = TRUE, main = "Precision-Recall")
+```
+
+## Compare the models
+```{r}
+models_to_evaluate <- list(IBCF_cos = list(name = "IBCF", param = list(method = "cosine")),
+                           IBCF_cor = list(name = "IBCF", param = list(method = "pearson")),
+                           UBCF_cos = list(name = "UBCF", param = list(method = "cosine")),
+                           UBCF_cor = list(name = "UBCF", param = list(method = "pearson")),
+                           random = list(name = "RANDOM", param = NULL))
+```
+
+
+
+Number of the recommendations items to test the models
+```{r}
+n_recommendations <- c(1, 5, seq(10, 100,10))
+```
+
+Run and evaluate the model
+
+```{r}
+list_results <- evaluate(x = eval_sets, method = models_to_evaluate, n = n_recommendations)
+class(list_results)
+```
+
+
+### Identify the most suitable model
+Bild the chart displaying ROC curves 
+```{r}
+plot(list_results, annotate = 1, legend = "topleft")
+title("ROC curves")
+```
+
+
+
+UBCF with pearson correlation has the better Area Under the Curve(AUC). It is the best-performing technique.
+
+
+Precision-Recall chart
+```{r}
+plot(list_results, "prec/rec", annotate = 1, legend = "bottomright")
+title("Precision-Recall")
+```
+
+
+
+
+
+
+
+
+
+
+
