@@ -28,9 +28,12 @@ Now let’s see the process of reducing the data from the main dataset
 Import original file and select sample for project
 
 ```{r}
-ratings <- read.csv('/home/alainkuiete/Documents/DATA612/movie20m/ml-20m/ratings.csv')
+ratings <- read.csv('C:\\DATA612\\DATA612ASSINGMENTS-master\\ml-20m\\ratings.csv')
 ```
 
+```{r}
+ratings <- ratings[1:600000,]
+```
 
 
 Explore
@@ -86,7 +89,7 @@ hist(colCounts(mratings))
 Select Subset 1 and Subset 2
 
 ```{r}
-(ratingShort <- mratings[rowCounts(mratings) > 900, colCounts(mratings) > 100])
+(ratingShort <- mratings[rowCounts(mratings) > 90, colCounts(mratings) > 60])
 ```
 
 
@@ -94,8 +97,8 @@ Select Subset 1 and Subset 2
 
 Step-6) Check and Remove Empty Lines
 ```{r}
-ratingShort <- mratings[, colCounts(mratings) > 100]
-ratingShort <- ratingShort[rowCounts(ratingShort) > 900, ]
+ratingShort <- mratings[, colCounts(mratings) > 60]
+ratingShort <- ratingShort[rowCounts(ratingShort) > 90, ]
 ratingShort
 ```
 
@@ -113,13 +116,7 @@ ratingShort
 (ratings_movies <- ratingShort[, colCounts(ratingShort) != 0])
 ```
  
-Convert to data frame and save as CSV file
-```{r}
-# df <- as.data.frame(as.matrix(ratingShort@data))
-# df$userId <- rownames(df)
-# df <- df %>% gather(key = movieId, value = rating, -userId) %>% filter(rating != 0)
-# write.csv(df, '/home/alainkuiete/Documents/DATA612/movie20m/ml-20m/ratings_final.csv', row.names = FALSE)
-```
+
 
 ## Evaluating Recommender Techniques
 ### Evaluating the model
@@ -216,12 +213,19 @@ plot(results, annotate = TRUE, main = "ROC curve")
 plot(results, "prec/rec", annotate = TRUE, main = "Precision-Recall")
 ```
 
+
+
 ## Compare the models
+
+```{r}
+
+```
+
+
 ```{r}
 models_to_evaluate <- list(IBCF_cos = list(name = "IBCF", param = list(method = "cosine")),
-                           IBCF_cor = list(name = "IBCF", param = list(method = "pearson")),
-                           UBCF_cos = list(name = "UBCF", param = list(method = "cosine")),
                            UBCF_cor = list(name = "UBCF", param = list(method = "pearson")),
+                           SVD = list(name = "SVD", param = list(k=100)),
                            random = list(name = "RANDOM", param = NULL))
 ```
 
@@ -259,10 +263,22 @@ title("Precision-Recall")
 ```
 
 
+### Support for Business or User Experience Goal
+Effect of a deployed recommder system on Business value
+Base on ads, the goal is to increase the time the user spend with the service and engagement as a proxy for retention
+We can craete an hybrid content-based collaborative filtering
+```{r}
+hybrid_model <- HbridRecommender(models_to_evaluate, c(0.30, 0.30, 0.39, 0.01 ))
+hybrid_pred <- predict(hybrid_model, newdata = knowm, type="ratings")
+(hybrid_acc = calcPredictionAccuracy(hybrid_pred, unknown))
+```
 
 
 
+### Comparison of the Accuracy
+```{r}
 
+```
 
 
 
