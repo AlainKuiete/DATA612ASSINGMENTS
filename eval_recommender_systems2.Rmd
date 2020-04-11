@@ -1,0 +1,624 @@
+---
+title: "Recommender System 2"
+author: "Alain Kuiete"
+date: "4/11/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## ----warning=FALSE, message=FALSE----------------------------------------
+
+```{r}
+library(recommenderlab)
+library(ggplot2)
+```
+
+## ----warning=FALSE, message=FALSE----------------------------------------
+
+
+```{r}
+data(MovieLense)
+ratings_movies <- MovieLense[rowCounts(MovieLense) > 50,
+                             colCounts(MovieLense) > 100]
+```
+
+```{r}
+ratings_movies
+```
+
+## ------------------------------------------------------------------------
+
+```{r}
+percentage_training <- 0.8
+```
+
+## ----warning=FALSE, message=FALSE----------------------------------------
+
+```{r}
+min(rowCounts(ratings_movies))
+```
+
+## ----warning=FALSE, message=FALSE----------------------------------------
+
+```{r}
+items_to_keep <- 15
+```
+
+## ----warning=FALSE, message=FALSE----------------------------------------
+
+```{r}
+rating_threshold <- 3
+```
+
+## ----warning=FALSE, message=FALSE----------------------------------------
+
+```{r}
+n_eval <- 1
+```
+
+## ----warning=FALSE, message=FALSE----------------------------------------
+
+```{r}
+eval_sets <- evaluationScheme(data = ratings_movies,
+                              method = "split",
+                              train = percentage_training,
+                              given = items_to_keep,
+                              goodRating = rating_threshold,
+                              k = n_eval)
+eval_sets
+```
+
+## ----warning=FALSE, message=FALSE----------------------------------------
+
+```{r}
+getData(eval_sets, "train")
+```
+
+## ----warning=FALSE, message=FALSE----------------------------------------
+
+```{r}
+nrow(getData(eval_sets, "train")) / nrow(ratings_movies)
+```
+
+## ----warning=FALSE, message=FALSE----------------------------------------
+
+```{r}
+getData(eval_sets, "known")
+getData(eval_sets, "unknown")
+```
+
+## ----warning=FALSE, message=FALSE----------------------------------------
+
+```{r}
+nrow(getData(eval_sets, "known")) / nrow(ratings_movies)
+```
+
+## ----warning=FALSE, message=FALSE----------------------------------------
+
+```{r}
+unique(rowCounts(getData(eval_sets, "known")))
+```
+
+## ----warning=FALSE, message=FALSE----------------------------------------
+
+```{r}
+qplot(rowCounts(getData(eval_sets, "unknown"))) +
+  geom_histogram(binwidth = 10) +
+  ggtitle("unknown items by the users")
+```
+
+## ------------------------------------------------------------------------
+
+```{r}
+percentage_training <- 0.8
+items_to_keep <- 15
+rating_threshold <- 3
+n_eval <- 1
+```
+
+## ----warning=FALSE, message=FALSE----------------------------------------
+
+```{r}
+eval_sets <- evaluationScheme(data = ratings_movies,
+                              method = "bootstrap",
+                              train = percentage_training,
+                              given = items_to_keep,
+                              goodRating = rating_threshold,
+                              k = n_eval)
+```
+
+## ----warning=FALSE, message=FALSE----------------------------------------
+
+```{r}
+nrow(getData(eval_sets, "train")) / nrow(ratings_movies)
+```
+
+## ----warning=FALSE, message=FALSE----------------------------------------
+
+```{r}
+perc_test <- nrow(getData(eval_sets, "known")) / nrow(ratings_movies)
+perc_test
+```
+
+## ----warning=FALSE, message=FALSE----------------------------------------
+
+```{r}
+length(unique(eval_sets@runsTrain[[1]]))
+```
+
+## ----warning=FALSE, message=FALSE----------------------------------------
+
+```{r}
+perc_train <- length(unique(eval_sets@runsTrain[[1]])) / nrow(ratings_movies)
+perc_train + perc_test
+```
+
+## ----warning=FALSE, message=FALSE----------------------------------------
+
+```{r}
+table_train <- table(eval_sets@runsTrain[[1]])
+n_repetitions <- factor(as.vector(table_train))
+qplot(n_repetitions) +
+  ggtitle("Number of repetitions in the training set")
+```
+
+## ----warning=FALSE, message=FALSE----------------------------------------
+
+```{r}
+n_fold <- 4
+eval_sets <- evaluationScheme(data = ratings_movies,
+                              method = "cross-validation",
+                              k = n_fold,
+                              given = items_to_keep,
+                              goodRating = rating_threshold)
+```
+
+## ----warning=FALSE, message=FALSE----------------------------------------
+
+```{r}
+size_sets <- sapply(eval_sets@runsTrain, length)
+size_sets
+```
+
+## ----echo=FALSE, warning=FALSE, message=FALSE----------------------------
+
+```{r}
+set.seed(1)
+library(pander)
+library(recommenderlab)
+library(ggplot2)
+data(MovieLense)
+ratings_movies <- MovieLense[rowCounts(MovieLense) > 50,
+                             colCounts(MovieLense) > 100]
+```
+
+## ------------------------------------------------------------------------
+
+```{r}
+n_fold <- 4
+items_to_keep <- 15
+rating_threshold <- 3
+eval_sets <- evaluationScheme(data = ratings_movies,
+                              method = "cross-validation",
+                              k = n_fold,
+                              given = items_to_keep,
+                              goodRating = rating_threshold)
+```
+
+## ------------------------------------------------------------------------
+
+```{r}
+model_to_evaluate <- "IBCF"
+model_parameters <- NULL
+```
+
+## ------------------------------------------------------------------------
+
+```{r}
+eval_recommender <- Recommender(data = getData(eval_sets, "train"),
+                                method = model_to_evaluate,
+                                parameter = model_parameters)
+```
+
+## ------------------------------------------------------------------------
+
+```{r}
+items_to_recommend <- 10
+```
+
+## ------------------------------------------------------------------------
+
+```{r}
+eval_prediction <- predict(object = eval_recommender,
+                           newdata = getData(eval_sets, "known"),
+                           n = items_to_recommend,
+                           type = "ratings")
+class(eval_prediction)
+```
+
+## ----warning=FALSE-------------------------------------------------------
+
+```{r}
+qplot(rowCounts(eval_prediction)) +
+  geom_histogram(binwidth = 10) +
+  ggtitle("Distribution of movies per user")
+```
+
+## ------------------------------------------------------------------------
+
+```{r}
+eval_accuracy <- calcPredictionAccuracy(
+  x = eval_prediction,
+  data = getData(eval_sets, "unknown"),
+  byUser = TRUE)
+```
+
+## ----eval=FALSE----------------------------------------------------------
+
+```{r}
+## head(eval_accuracy)
+```
+
+## ----echo=FALSE----------------------------------------------------------
+
+```{r}
+pander(head(eval_accuracy))
+```
+
+## ------------------------------------------------------------------------
+
+```{r}
+qplot(eval_accuracy[, "RMSE"]) +
+  geom_histogram(binwidth = 0.1) +
+  ggtitle("Distribution of the RMSE by user")
+```
+
+## ------------------------------------------------------------------------
+
+```{r}
+eval_accuracy <- calcPredictionAccuracy(
+  x = eval_prediction,
+  data = getData(eval_sets, "unknown"),
+  byUser = FALSE)
+eval_accuracy
+```
+
+## ----message=FALSE-------------------------------------------------------
+
+```{r}
+results <- evaluate(x = eval_sets,
+                    method = model_to_evaluate,
+                    n = seq(10, 100, 10))
+class(results)
+```
+
+## ----eval=FALSE----------------------------------------------------------
+
+```{r}
+## head(getConfusionMatrix(results)[[1]])
+```
+
+## ----echo=FALSE----------------------------------------------------------
+
+```{r}
+pander(head(getConfusionMatrix(results)[[1]]))
+```
+
+## ------------------------------------------------------------------------
+
+```{r}
+columns_to_sum <- c("TP", "FP", "FN", "TN")
+indices_summed <- Reduce("+", getConfusionMatrix(results))[, columns_to_sum]
+```
+
+## ----eval=FALSE----------------------------------------------------------
+
+```{r}
+## head(indices_summed)
+```
+
+## ----echo=FALSE----------------------------------------------------------
+
+```{r}
+pander(head(indices_summed))
+```
+
+## ------------------------------------------------------------------------
+
+```{r}
+plot(results,
+     annotate = TRUE,
+     main = "ROC curve")
+```
+
+## ------------------------------------------------------------------------
+
+```{r}
+plot(results, "prec/rec",
+     annotate = TRUE,
+     main = "Precision-recall")
+```
+
+## ----echo=FALSE, warning=FALSE, message=FALSE----------------------------
+
+```{r}
+library(pander)
+set.seed(1)
+library(recommenderlab)
+library(ggplot2)
+
+```
+
+```{r}
+data(MovieLense)
+ratings_movies <- MovieLense[rowCounts(MovieLense) > 50,
+                             colCounts(MovieLense) > 100]
+```
+
+
+
+```{r}
+n_fold <- 4
+items_to_keep <- 15
+rating_threshold <- 3
+eval_sets <- evaluationScheme(data = ratings_movies,
+                              method = "cross-validation",
+                              k = n_fold,
+                              given = items_to_keep,
+                              goodRating = rating_threshold)
+```
+
+## ----eval=FALSE----------------------------------------------------------
+
+```{r}
+## list(name = "IBCF", param = list(k = 20))
+```
+
+## ------------------------------------------------------------------------
+
+```{r}
+models_to_evaluate <- list(
+  IBCF_cos = list(name = "IBCF", param = list(method = "cosine")),
+  IBCF_cor = list(name = "IBCF", param = list(method = "pearson")),
+  UBCF_cos = list(name = "UBCF", param = list(method = "cosine")),
+  UBCF_cor = list(name = "UBCF", param = list(method = "pearson")),
+  random = list(name = "RANDOM", param=NULL)
+)
+```
+
+## ------------------------------------------------------------------------
+
+```{r}
+n_recommendations <- c(1, 5, seq(10, 100, 10))
+```
+
+## ----message=FALSE, warning=FALSE----------------------------------------
+
+```{r}
+list_results <- evaluate(x = eval_sets,
+                    method = models_to_evaluate,
+                    n = n_recommendations)
+class(list_results)
+```
+
+## ------------------------------------------------------------------------
+
+```{r}
+class(list_results[[1]])
+```
+
+## ------------------------------------------------------------------------
+
+```{r}
+sapply(list_results, class) == "evaluationResults"
+```
+
+## ------------------------------------------------------------------------
+
+```{r}
+avg_matrices <- lapply(list_results, avg)
+```
+
+## ----eval=FALSE----------------------------------------------------------
+
+```{r}
+## head(avg_matrices$IBCF_cos[, 5:8])
+```
+
+## ----echo=FALSE----------------------------------------------------------
+
+```{r}
+pander(head(avg_matrices$IBCF_cos)[, 5:8])
+```
+
+## ------------------------------------------------------------------------
+
+```{r}
+plot(list_results,
+     annotate = 1,
+     legend = "topleft")
+title("ROC curve")
+```
+
+## ------------------------------------------------------------------------
+
+```{r}
+plot(list_results,
+     "prec/rec",
+     annotate = 1,
+     legend = "bottomright")
+title("Precision-recall")
+```
+
+## ------------------------------------------------------------------------
+
+```{r}
+vector_k <- c(5, 10, 20, 30, 40)
+```
+
+## ------------------------------------------------------------------------
+
+```{r}
+models_to_evaluate <- lapply(vector_k, function(k){
+  list(name = "IBCF",
+       param = list(method = "cosine",
+                    k = k))
+})
+names(models_to_evaluate) <- paste0("IBCF_k_", vector_k)
+```
+
+## ------------------------------------------------------------------------
+
+```{r}
+n_recommendations <- c(1, 5, seq(10, 100, 10))
+list_results <- evaluate(x = eval_sets,
+                         method = models_to_evaluate,
+                         n = n_recommendations)
+```
+
+## ------------------------------------------------------------------------
+
+```{r}
+plot(list_results,
+     annotate = 1,
+     legend = "topleft")
+title("ROC curve")
+```
+
+## ------------------------------------------------------------------------
+
+
+```{r}
+plot(list_results,
+     "prec/rec",
+     annotate = 1,
+     legend = "bottomright")
+title("Precision-recall")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+# Train/test split
+set.seed(88)
+eval <- evaluationScheme(ratings_movies, method = "split", train = 0.8, given = 5, goodRating = 3)
+train <- getData(eval, "train")
+known <- getData(eval, "known")
+unknown <- getData(eval, "unknown")
+
+# Set up data frame for timing
+timing <- data.frame(Model = factor(), Training = double(), Predicting = double())
+```
+
+
+
+```{r}
+model_method <- "UBCF"
+
+# Training
+tic()
+modelUBCF <- Recommender(train, method = model_method)
+t <- toc(quiet = TRUE)
+train_time <- round(t$toc - t$tic, 2)
+
+# Predicting
+tic()
+predUBCF <- predict(modelUBCF, newdata = known, type = "ratings")
+t <- toc(quiet = TRUE)
+predict_time <- round(t$toc - t$tic, 2)
+
+timing <- rbind(timing, data.frame(Model = as.factor(model_method), Training = as.double(train_time), 
+    Predicting = as.double(predict_time)))
+# Accuracy
+accUBCF <- calcPredictionAccuracy(predUBCF, unknown)
+resultsUBCF <- evaluate(x = eval, method = model_method, n = c(1, 5, 10, 30, 60))
+```
+
+
+```{r}
+model_method <- "SVD"
+
+# Training
+tic()
+modelSVD <- Recommender(train, method = model_method, parameter = list(k = 50))
+t <- toc(quiet = TRUE)
+train_time <- round(t$toc - t$tic, 2)
+
+# Predicting
+tic()
+predSVD <- predict(modelSVD, newdata = known, type = "ratings")
+t <- toc(quiet = TRUE)
+predict_time <- round(t$toc - t$tic, 2)
+
+timing <- rbind(timing, data.frame(Model = as.factor(model_method), Training = as.double(train_time), 
+    Predicting = as.double(predict_time)))
+
+# Accuracy
+accSVD <- calcPredictionAccuracy(predSVD, unknown)
+# resultsSVD <- evaluate(x = eval, method = model_method, n = c(1, 5, 10,
+# 30, 60))
+```
+
+
+```{r}
+model_method <- "RANDOM"
+
+# Training
+tic()
+modelRandom <- Recommender(train, method = model_method)
+t <- toc(quiet = TRUE)
+train_time <- round(t$toc - t$tic, 2)
+
+# Predicting
+tic()
+predRandom <- predict(modelRandom, newdata = known, type = "ratings")
+t <- toc(quiet = TRUE)
+predict_time <- round(t$toc - t$tic, 2)
+
+timing <- rbind(timing, data.frame(Model = as.factor(model_method), Training = as.double(train_time), 
+    Predicting = as.double(predict_time)))
+
+# Accuracy
+accRandom <- calcPredictionAccuracy(predRandom, unknown)
+# resultsRandom <- evaluate(x = eval, method = model_method, n = c(1, 5, 10,
+# 30, 60))
+```
+
+```{r}
+models <- list(UBCF = list(name = "UBCF", param = NULL), Random = list(name = "RANDOM", 
+    param = NULL), SVD = list(name = "SVD", param = list(k = 50)))
+evalResults <- evaluate(x = eval, method = models, n = c(1, 5, 10, 30, 60))
+```
+
