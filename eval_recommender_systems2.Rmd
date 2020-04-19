@@ -34,48 +34,57 @@ ratings <- ratings[complete.cases(ratings),]
 
 Convert to realRatingMatrix
 ```{r}
-ratingsMatrix <- sparseMatrix(as.integer(ratings$userId), as.integer(ratings$movieId),  x = ratings$rating)
-colnames(ratingsMatrix) <- levels(ratings$movieId)
-rownames(ratingsMatrix) <- levels(ratings$userId)
-mratings <- as(ratingsMatrix, "realRatingMatrix")
+# ratingsMatrix <- sparseMatrix(as.integer(ratings$userId), as.integer(ratings$movieId),  x = ratings$rating)
+# colnames(ratingsMatrix) <- levels(ratings$movieId)
+# rownames(ratingsMatrix) <- levels(ratings$userId)
+# mratings <- as(ratingsMatrix, "realRatingMatrix")
 ```
 
 
+
+```{r}
+tempRatings <- as(ratings, "realRatingMatrix")
+```
+
 Explore
 ```{r}
-mratings
+# mratings
 ```
 
 Select Subset
 
 ```{r}
-(ratingShort <- mratings[rowCounts(mratings) > 90, colCounts(mratings) > 60])
+# (ratingShort <- mratings[rowCounts(mratings) > 200, colCounts(mratings) > 150])
 ```
 
 
+```{r}
+(ratings_movies <- tempRatings[rowCounts(tempRatings)>80, colCounts(tempRatings)>100])
+```
 
 
 Check and Remove Empty Lines
 ```{r}
-ratingShort <- mratings[, colCounts(mratings) > 60]
-ratingShort <- ratingShort[rowCounts(ratingShort) > 90, ]
-ratingShort
+# ratingShort <- mratings[, colCounts(mratings) > 200]
+# ratingShort <- ratingShort[rowCounts(ratingShort) > 150, ]
+# ratingShort
 ```
 
 ```{r}
-(ratings_movies <- ratingShort[, colCounts(ratingShort) != 0])
+# (ratings_movies <- ratingShort[, colCounts(ratingShort) != 0])
 ```
 
 
 ```{r}
-
+(ratings_movies <- ratings_movies[rowCounts(ratings_movies) >120, colCounts(ratings_movies) > 150])
 ```
 
 ## Set up One  Model and  Evaluate
 
+
 ```{r}
 n_fold <- 4
-items_to_keep <- 15
+items_to_keep <- 10
 rating_threshold <- 3
 eval_sets <- evaluationScheme(data = ratings_movies,
                               method = "cross-validation",
@@ -115,15 +124,15 @@ eval_prediction <- predict(object = eval_recommender,
 class(eval_prediction)
 ```
 
-## Evaluation of Recomendation Accuracy per user
-
+### Evaluation of Recomendation Accuracy per user
+### Evaluation of the ratings
 ```{r}
 qplot(rowCounts(eval_prediction)) +
   geom_histogram(binwidth = 10) +
   ggtitle("Distribution of movies per user")
 ```
 
-
+This distribution is normal. the number of movies rated per user is between 40 and 300
 
 ```{r}
 eval_accuracy <- calcPredictionAccuracy(
@@ -151,8 +160,10 @@ qplot(eval_accuracy[, "RMSE"]) +
   geom_histogram(binwidth = 0.1) +
   ggtitle("Distribution of the RMSE by user")
 ```
-
-#### Overall Recommendation Accuracy
+This distribution is quite normal. The rating RMSE is between 0.2 and 2. 
+ 
+#### Overall Recommendation Accuracy 
+#### Average evaluation result of ratings
 
 ```{r}
 eval_accuracy <- calcPredictionAccuracy(
@@ -177,12 +188,13 @@ class(results)
 ## head(getConfusionMatrix(results)[[1]])
 ```
 
-
+#### Comparing The recommendation with purchases having positive ratings. The threshold is 3.
+First Element of  the Confusion Matrix Which Correspond to a Split of the K-Fold
 ```{r}
 pander(head(getConfusionMatrix(results)[[1]]))
 ```
 
-
+Sum of all the Elements in the Confusion Matrix List
 ```{r}
 columns_to_sum <- c("TP", "FP", "FN", "TN")
 indices_summed <- Reduce("+", getConfusionMatrix(results))[, columns_to_sum]
@@ -199,7 +211,7 @@ indices_summed <- Reduce("+", getConfusionMatrix(results))[, columns_to_sum]
 pander(head(indices_summed))
 ```
 
-
+ROC = % purchased items that have been recommended/% not purchased items that have been recommended.
 
 ```{r}
 plot(results,
@@ -207,15 +219,23 @@ plot(results,
      main = "ROC curve")
 ```
 
+Precision = % recommended items that have been purchased
+Recall = % purchased items that have been recommended
 
+If a small percentage of purchased items are recommended, the precision usually decreases. On the other hand, a higher percentage of purchased items will be recommended so that the recall increases:
+
+Gorakala, Suresh K.. Building a Recommendation System with R (p. 91). Packt Publishing. Kindle Edition. 
 
 ```{r}
 plot(results, "prec/rec",
      annotate = TRUE,
      main = "Precision-recall")
 ```
-
+ 
+ The curve is monotone and the trend is predictable.
+ 
 ## Comparison of Different Models of Recommender System
+Applying differnt technique to the same data, we can compare the recommender models and pick the appropriate one.
 
 ```{r}
 library(pander)
@@ -226,16 +246,16 @@ library(ggplot2)
 ```
 
 ```{r}
-data(MovieLense)
-ratings_movies <- MovieLense[rowCounts(MovieLense) > 50,
-                             colCounts(MovieLense) > 100]
+# data(MovieLense)
+# ratings_movies <- MovieLense[rowCounts(MovieLense) > 50,
+#                              colCounts(MovieLense) > 100]
 ```
 
 
 
 ```{r}
 n_fold <- 4
-items_to_keep <- 15
+items_to_keep <- 9
 rating_threshold <- 3
 eval_sets <- evaluationScheme(data = ratings_movies,
                               method = "cross-validation",
@@ -290,7 +310,7 @@ class(list_results)
 class(list_results[[1]])
 ```
 
-
+The Evaluation list Evaluate all the recommender models
 ```{r}
 sapply(list_results, class) == "evaluationResults"
 ```
@@ -331,7 +351,7 @@ plot(list_results,
 title("Precision-recall")
 ```
 
- The models UBCF_cor and SVD perform better than other models. 
+ The models UBCF_cor  perform better than other models. 
  We can make an hybrid model base on the UBCF_cor and SVD.  
 
  ## Hybrid Recommender Model
@@ -424,7 +444,7 @@ pHybrid@items
 
 Now as we see, the Hybrid model includes most of the items recommended by the UBCF model, but there are new items and the order is different.
 
-##----------------------------- Conclusion-----------------------------------
+## ---------------------------- Conclusion--------------------------------
 . I used recommenderlab code and 20 million movie rating from movielens build my project.
 
 • I first study the effect of IBCF on individual recommendatio. The recommenderlab allow me to build a list of six different recommender system algorithms and compared the accuracy of all the three different models. 
